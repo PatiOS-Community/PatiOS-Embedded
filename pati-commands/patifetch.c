@@ -163,7 +163,6 @@ int main() {
     char svc[64];
     snprintf(svc, sizeof(svc), "%d adet servis açık", services);
     print_line(" Servisler: ", svc);
-    printf("\n");
-
+    printf("\e[0m\n");
     return 0;
 }

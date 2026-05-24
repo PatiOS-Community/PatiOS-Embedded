@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -31,15 +32,47 @@ int main() {
     mount("proc", "/proc", "proc", 0, NULL);
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     mkdir("/data", 0755);
+    mkdir("/data/paticommands", 0755);
     int ret = mount("/dev/vda", "/data", "ext4", 0, NULL);
     if (ret == 0) {
         printf("[TAMAM]: Kalıcı depolama aktifleştirildi.\n");
+
+        DIR *d = opendir("/data/paticommands");
+        if (d) {
+            struct dirent *ent;
+            while ((ent = readdir(d)) != NULL) {
+                if (ent->d_name[0] == '.') continue;
+                char kaynak[512], hedef[512];
+                snprintf(kaynak, sizeof(kaynak), "/data/paticommands/%s", ent->d_name);
+                snprintf(hedef, sizeof(hedef), "/lib/paticommands/%s", ent->d_name);
+                
+                struct stat st;
+                if (stat(kaynak, &st) == 0 && S_ISREG(st.st_mode)) {
+                    int in = open(kaynak, O_RDONLY);
+                    int out = open(hedef, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+                    if (in >= 0 && out >= 0) {
+                        char buf[4096];
+                        ssize_t n;
+                        while ((n = read(in, buf, sizeof(buf))) > 0)
+                            write(out, buf, n);
+                        printf("[TAMAM]: %s kopyalandi.\n", ent->d_name);
+                    }
+                    if (in >= 0) close(in);
+                    if (out >= 0) close(out);
+                }
+            }
+            closedir(d);
+        } else {
+            printf("[BILGI]: /data/paticommands bulunamadi, atlaniyor.\n");
+        }
+        putenv("PATH=/bin:/pcg-startup:/usr/bin:/lib/paticommands");
     } else if (errno == EBUSY) {
-        printf("[BILGI]: Depolama zaten bağlanmış?\n");
+        printf("[BILGI]: Depolama zaten bagli.\n");
+        putenv("PATH=/bin:/pcg-startup:/usr/bin:/lib/paticommands");
     } else {
-        perror("[HATA]: Disk Bağlanamadı, hataya bak");
+        perror("[HATA]: Disk baglanamadi");
+        putenv("PATH=/bin:/pcg-startup:/usr/bin:/lib/paticommands");
     }
-    putenv("PATH=/lib/paticommands/:/bin:/pcg-startup:/usr/bin");
     putenv("TERM=linux");
     printf("\nYaHnI oLaN vArMı?\n");
     printf("Pati-2.1 by Mehmet Demir. Kod adı: Ananas (Pineapple)\n");
