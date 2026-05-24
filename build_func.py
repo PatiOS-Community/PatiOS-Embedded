@@ -57,6 +57,12 @@ def compile():
         out = f.replace(".c", "")
         if "mauvyd.c" in f:
             ret = os.system(f"{gcc_loc} {flags} -Ipati-commands/pati-headers {f} pati-commands/pati-headers/pcg.c -o {out}")
+        elif "psp.c" in f:
+            user = input("Kullanıcı adını gir >> ")
+            libcrypto_path = f"/home/{user}/KedyBox/libcrypto.a"
+            ret = os.system(f"{gcc_loc} {flags} {f} {libcrypto_path} -o {out}")
+        else:
+            ret = os.system(f"{gcc_loc} {flags} {f} -o {out}")
         else:
             ret = os.system(f"{gcc_loc} {flags} {f} -o {out}")
         if ret == 0:
