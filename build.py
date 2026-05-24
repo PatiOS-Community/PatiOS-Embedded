@@ -10,4 +10,4 @@ if platform.system() == "Linux":
     build_func.create_nodes()
     build_func.move()
 else:
-    print("You cannot run this script on your system. Please make sure you are using a Linux-based operating system")
+    print("You cannot run this script on your system. Please make sure you are using a Linux-based (like Ubuntu or WSL) operating system")
