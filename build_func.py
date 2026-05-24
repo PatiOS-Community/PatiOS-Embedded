@@ -83,7 +83,7 @@ def create_nodes():
 
 def move():
     os.makedirs("rootfs/lib/paticommands", exist_ok=True)
-
+    os.makedirs("rootfs/bin", exist_ok=True)
     if os.path.exists("pati-commands/mauvyd"):
         os.system("cp pati-commands/mauvyd rootfs/init")
         os.system("rm -f pati-commands/mauvyd")
