@@ -17,35 +17,36 @@ def root_control():
         sys.exit(1)
 
 def extract():
-    print(Fore.GREEN + fs_unzip_content)
+    print(Fore.GREEN + "Dosya sistemi çıkarılıyor..")
 
     if not os.path.exists(unzip_loc):
-        print(Fore.YELLOW + unzip_not_found_error)
+        print(Fore.YELLOW + "[!] unzip bulunamadı, kuruluyor...")
         ret = os.system("sudo apt install unzip -y")
         if ret != 0:
-            print(Fore.RED + unzip_not_setup_error)
+            print(Fore.RED + "[-] unzip kurulamadı, çıkılıyor.")
             sys.exit(1)
 
     ret1 = os.system(f"{unzip_loc} paticommands.zip -d pati-commands/")
     ret2 = os.system(f"{unzip_loc} filesystem.zip -d rootfs/")
 
     if ret1 != 0 or ret2 != 0:
-        print(Fore.RED + unzip_not_success_error)
+        print(Fore.RED + "[-] ZIP çıkartma başarısız, çıkılıyor.")
         sys.exit(1)
 
-    print(Fore.GREEN + fs_success)
+    print(Fore.GREEN + "[+] Dosya sistemi hazır.")
+
 
 def compile():
     if not os.path.exists(gcc_loc):
-        print(Fore.YELLOW + aarch64_gcc_not_found_error)
+        print(Fore.YELLOW + "[!] aarch64-gcc bulunamadı, kuruluyor...")
         ret = os.system("sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu -y")
         if ret != 0:
-            print(Fore.RED + gcc_not_setup_error)
+            print(Fore.RED + "[-] GCC kurulamadı, çıkılıyor.")
             sys.exit(1)
 
     dosyalar = glob.glob("pati-commands/*.c")
     if not dosyalar:
-        print(Fore.RED + pati_commands_file_not_found_error)
+        print(Fore.RED + "[-] pati-commands/ içinde .c dosyası bulunamadı.")
         sys.exit(1)
 
     sysroot = os.path.abspath("rootfs/usr")
@@ -63,23 +64,22 @@ def compile():
             ret = os.system(f"{gcc_loc} {flags} {f} {libcrypto_path} -o {out}")
         else:
             ret = os.system(f"{gcc_loc} {flags} {f} -o {out}")
-        else:
-            ret = os.system(f"{gcc_loc} {flags} {f} -o {out}")
         if ret == 0:
-            print(Fore.GREEN + f"{compile_success} {f} -> {out}")
+            print(Fore.GREEN + f"[+] Derlendi: {f} -> {out}")
             basari += 1
         else:
-            print(Fore.RED + f"{compile_not_success} {f}")
+            print(Fore.RED + f"[-] Hata: {f}")
             hata += 1
-    print(Fore.GREEN + f"{compilation_complete} {basari} {success}, {hata} {incorrect}")
+    print(Fore.GREEN + f"[+] Derleme tamam: {basari} başarılı, {hata} hatalı.")
+
 
 def create_nodes():
-        print(Fore.GREEN + create_dev_nodes)
-        os.system("sudo rm -f rootfs/dev/vda rootfs/dev/fb0 rootfs/dev/rtc0 rootfs/dev/urandom")
-        os.system("sudo mknod rootfs/dev/vda b 254 0")
-        os.system("sudo mknod rootfs/dev/fb0 c 29 0")
-        os.system("sudo mknod rootfs/dev/rtc0 c 253 0")
-        os.system("sudo mknod rootfs/dev/urandom c 1 9")
+    print(Fore.GREEN + "[+] Device nodes oluşturuluyor...")
+    os.system("sudo rm -f rootfs/dev/vda rootfs/dev/fb0 rootfs/dev/rtc0 rootfs/dev/urandom")
+    os.system("sudo mknod rootfs/dev/vda b 254 0")
+    os.system("sudo mknod rootfs/dev/fb0 c 29 0")
+    os.system("sudo mknod rootfs/dev/rtc0 c 253 0")
+    os.system("sudo mknod rootfs/dev/urandom c 1 9")
 
 def move():
     os.makedirs("rootfs/lib/paticommands", exist_ok=True)
@@ -94,13 +94,19 @@ def move():
     for f in glob.glob("pati-commands/*"):
         if not f.endswith(".c") and os.path.isfile(f):
             os.system(f"cp {f} rootfs/lib/paticommands/")
-            print(Fore.GREEN + f"{moved} {f}")
+            print(Fore.GREEN + f"[+] Taşındı: {f}")
             os.system(f"rm -f {f}")
     os.system("rm -f rootfs/lib/paticommands/init rootfs/lib/paticommands/shell")
-    print(Fore.GREEN + create_initramfs)
+    print(Fore.GREEN + "[+] initramfs oluşturuluyor...")
     ret = os.system("cd rootfs && find . | cpio -o -H newc | gzip -9 > ../initramfs.cpio.gz")
     if ret == 0:
-        print(Fore.GREEN + initramfs_ready)
+        print(Fore.GREEN + "[+] initramfs.cpio.gz hazır.")
     else:
-        print(Fore.RED + not_create_initramfs)
+        print(Fore.RED + "[-] initramfs oluşturulamadı.")
         sys.exit(1)
+
+
+extract()
+compile()
+create_nodes()
+move()
