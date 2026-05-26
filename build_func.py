@@ -104,9 +104,3 @@ def move():
     else:
         print(Fore.RED + "[-] initramfs oluşturulamadı.")
         sys.exit(1)
-
-
-extract()
-compile()
-create_nodes()
-move()
