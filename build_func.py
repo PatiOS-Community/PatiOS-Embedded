@@ -50,7 +50,7 @@ def compile():
         sys.exit(1)
 
     sysroot = os.path.abspath("rootfs/usr")
-    flags = f"--sysroot={sysroot} -I{sysroot}/include -I/usr/include -L{sysroot}/lib -static"
+    flags = f"--sysroot={sysroot} -I{sysroot}/include -L{sysroot}/lib -static"
 
     basari = 0
     hata = 0
@@ -60,15 +60,19 @@ def compile():
             ret = os.system(f"{gcc_loc} {flags} -Ipati-commands/pati-headers {f} pati-commands/pati-headers/pcg.c -o {out}")
         elif "psp.c" in f:
             user = input("Kullanıcı adını gir >> ")
-            libcrypto_path = f"/home/{user}/KedyBox/libcrypto.a"
+            libcrypto_path = f"/home/{user}/PatiOS-Embedded/libcrypto.a"
             ret = os.system(f"{gcc_loc} {flags} {f} {libcrypto_path} -o {out}")
         else:
             ret = os.system(f"{gcc_loc} {flags} {f} -o {out}")
+
+        f_safe = f.encode('utf-8', 'ignore').decode('utf-8')
+        out_safe = out.encode('utf-8', 'ignore').decode('utf-8')
+
         if ret == 0:
-            print(Fore.GREEN + f"[+] Derlendi: {f} -> {out}")
+            print(Fore.GREEN + f"[+] Derlendi: {f_safe} -> {out_safe}")
             basari += 1
         else:
-            print(Fore.RED + f"[-] Hata: {f}")
+            print(Fore.RED + f"[-] Hata: {f_safe}")
             hata += 1
     print(Fore.GREEN + f"[+] Derleme tamam: {basari} başarılı, {hata} hatalı.")
 
@@ -94,7 +98,8 @@ def move():
     for f in glob.glob("pati-commands/*"):
         if not f.endswith(".c") and os.path.isfile(f):
             os.system(f"cp {f} rootfs/lib/paticommands/")
-            print(Fore.GREEN + f"[+] Taşındı: {f}")
+            f_safe = f.encode('utf-8', 'ignore').decode('utf-8')
+            print(Fore.GREEN + f"[+] Taşındı: {f_safe}")
             os.system(f"rm -f {f}")
     os.system("rm -f rootfs/lib/paticommands/init rootfs/lib/paticommands/shell")
     print(Fore.GREEN + "[+] initramfs oluşturuluyor...")
