@@ -8,9 +8,7 @@
 #include <sys/mount.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
-#include <arpa/inet.h>
 #include <signal.h>
-#include <linux/route.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include "pati-headers/pcg.h"
@@ -50,55 +48,24 @@ int main() {
     putenv("PATH=/bin:/pcg-startup:/usr/bin:/data/paticommands:/lib/paticommands");
     putenv("TERM=linux");
     printf("Pati-2.1 Embedded Edition by PatiOS Team.\n");
-    printf("[!] Loopback bağlantıları yapılıyor..\n");
-    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+
     struct ifreq ifr;
+    int tmp_fd = socket(AF_INET, SOCK_DGRAM, 0);
 
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, "lo", IFNAMSIZ);
-    ifr.ifr_flags = IFF_UP | IFF_RUNNING;
-    ioctl(fd, SIOCSIFFLAGS, &ifr);
+    ioctl(tmp_fd, SIOCGIFFLAGS, &ifr);
+    ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+    ioctl(tmp_fd, SIOCSIFFLAGS, &ifr);
 
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, "eth0", IFNAMSIZ);
-    ifr.ifr_flags = IFF_UP | IFF_RUNNING;
-    ioctl(fd, SIOCSIFFLAGS, &ifr);
+    ioctl(tmp_fd, SIOCGIFFLAGS, &ifr);
+    ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+    ioctl(tmp_fd, SIOCSIFFLAGS, &ifr);
 
-    struct sockaddr_in *addr = (struct sockaddr_in *)&ifr.ifr_addr;
-    addr->sin_family = AF_INET;
-    inet_pton(AF_INET, "10.0.2.15", &addr->sin_addr);
-    ioctl(fd, SIOCSIFADDR, &ifr);
+    close(tmp_fd);
 
-    inet_pton(AF_INET, "255.255.255.0", &addr->sin_addr);
-    ioctl(fd, SIOCSIFNETMASK, &ifr);
-
-    struct rtentry route;
-    memset(&route, 0, sizeof(route));
-
-    struct sockaddr_in *gw = (struct sockaddr_in *)&route.rt_gateway;
-    gw->sin_family = AF_INET;
-    inet_pton(AF_INET, "10.0.2.2", &gw->sin_addr);
-
-    struct sockaddr_in *dst = (struct sockaddr_in *)&route.rt_dst;
-    dst->sin_family = AF_INET;
-    dst->sin_addr.s_addr = INADDR_ANY;
-
-    struct sockaddr_in *mask = (struct sockaddr_in *)&route.rt_genmask;
-    mask->sin_family = AF_INET;
-    mask->sin_addr.s_addr = INADDR_ANY;
-
-    route.rt_flags = RTF_UP | RTF_GATEWAY;
-    route.rt_dev = "eth0";
-
-    ioctl(fd, SIOCADDRT, &route);
-
-    close(fd);
-
-    FILE *resolv = fopen("/etc/resolv.conf", "w");
-    if (resolv != NULL) {
-        fprintf(resolv, "nameserver 8.8.8.8\n");
-        fclose(resolv);
-    }
 for (int i = 0; i < n; i++) {
     entry = namelist[i];
     if (strcmp(entry->d_name, ".") == 0) {
