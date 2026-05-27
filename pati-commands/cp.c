@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     }
     int fd_src = open(argv[1], O_RDONLY);
     if (fd_src < 0) { perror("kaynak bulunamadı, waeow!"); return 1; }
-    int fd_dst = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd_dst = open(dst_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd_dst < 0) { perror("hedef açılamadı, pati üzgün :("); close(fd_src); return 1; }
 
     char buf[4096];
