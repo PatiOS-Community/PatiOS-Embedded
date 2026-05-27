@@ -1,4 +1,3 @@
-#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -10,6 +9,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <arpa/inet.h>
+#include <signal.h>
 #include <linux/route.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -19,9 +19,11 @@ int main() {
     struct dirent *entry;
     pid_t pid;
     struct dirent **namelist;
-    int n = scandir("/dev/pcgconfigs", &namelist, NULL, alphasort);
+    int n = scandir("/etc/pcgconfigs", &namelist, NULL, alphasort);
     if (n < 0) {
-        perror("[UYARI]: pcgconfigs açılamadı, sistem devam edecek..");
+        perror("[!]: pcgconfigs açılamadı, sistem devam edecek..");
+        char *shell_args[] = {"/bin/shell", NULL};
+        execv("/bin/shell", shell_args);
         while(wait(NULL) > 0);
         return 0;
     }
@@ -29,55 +31,34 @@ int main() {
     printf("----- MAUVYD Konfigürasyon Sistemi -----\n");
     printf("-------------Dosya Sistemi--------------\n");
     printf("-------------  Açılıyor.. --------------\n");
-    mount("proc", "/proc", "proc", 0, NULL);
+    mount("proc", "/proc", "proc", 0, NULL); 
     mount("sysfs", "/sys", "sysfs", 0, NULL);
+    mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
+    mount("tmpfs", "/tmp", "tmpfs", 0, NULL);
     mkdir("/data", 0755);
     mkdir("/data/paticommands", 0755);
     int ret = mount("/dev/vda", "/data", "ext4", 0, NULL);
     if (ret == 0) {
-        printf("[TAMAM]: Kalıcı depolama aktifleştirildi.\n");
-
-        DIR *d = opendir("/data/paticommands");
-        if (d) {
-            struct dirent *ent;
-            while ((ent = readdir(d)) != NULL) {
-                if (ent->d_name[0] == '.') continue;
-                char kaynak[512], hedef[512];
-                snprintf(kaynak, sizeof(kaynak), "/data/paticommands/%s", ent->d_name);
-                snprintf(hedef, sizeof(hedef), "/lib/paticommands/%s", ent->d_name);
-                
-                struct stat st;
-                if (stat(kaynak, &st) == 0 && S_ISREG(st.st_mode)) {
-                    int in = open(kaynak, O_RDONLY);
-                    int out = open(hedef, O_WRONLY | O_CREAT | O_TRUNC, 0755);
-                    if (in >= 0 && out >= 0) {
-                        char buf[4096];
-                        ssize_t n;
-                        while ((n = read(in, buf, sizeof(buf))) > 0)
-                            write(out, buf, n);
-                        printf("[TAMAM]: %s kopyalandi.\n", ent->d_name);
-                    }
-                    if (in >= 0) close(in);
-                    if (out >= 0) close(out);
-                }
-            }
-            closedir(d);
-        } else {
-            printf("[BILGI]: /data/paticommands bulunamadi, atlaniyor.\n");
-        }
-        putenv("PATH=/bin:/pcg-startup:/usr/bin:/lib/paticommands");
+        printf("[+]: Kalıcı depolama aktifleştirildi.\n");
     } else if (errno == EBUSY) {
-        printf("[BILGI]: Depolama zaten bagli.\n");
-        putenv("PATH=/bin:/pcg-startup:/usr/bin:/lib/paticommands");
+        printf("[?]: Depolama zaten bagli.\n");
     } else {
-        perror("[HATA]: Disk baglanamadi");
-        putenv("PATH=/bin:/pcg-startup:/usr/bin:/lib/paticommands");
+        perror("[!]: Disk baglanamadi..\n");
     }
+    printf("[!] Hostname ayarlanıyor..\n");
+    sethostname("patios", 6);
+    putenv("PATH=/bin:/pcg-startup:/usr/bin:/data/paticommands:/lib/paticommands");
     putenv("TERM=linux");
-    printf("\nYaHnI oLaN vArMı?\n");
-    printf("Pati-2.1 by Mehmet Demir. Kod adı: Ananas (Pineapple)\n");
+    printf("Pati-2.1 Embedded Edition by PatiOS Team.\n");
+    printf("[!] Loopback bağlantıları yapılıyor..\n");
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     struct ifreq ifr;
+
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, "lo", IFNAMSIZ);
+    ifr.ifr_flags = IFF_UP | IFF_RUNNING;
+    ioctl(fd, SIOCSIFFLAGS, &ifr);
+
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, "eth0", IFNAMSIZ);
     ifr.ifr_flags = IFF_UP | IFF_RUNNING;
@@ -127,15 +108,15 @@ for (int i = 0; i < n; i++) {
         continue;
     };
       usleep(10000);
-      printf("İşlem Buldum!: %s\n", entry->d_name);
+      printf("İşlem Bulundu: %s\n", entry->d_name);
       char tamyol[512];
-      snprintf(tamyol, sizeof(tamyol), "/dev/pcgconfigs/%s", entry->d_name);
+      snprintf(tamyol, sizeof(tamyol), "/etc/pcgconfigs/%s", entry->d_name);
     char dosyayolu[256] = {0};
     char bekle_val[16] = {0};
     char izle_val[16] = {0};
     pcg_read(tamyol, "konumu", dosyayolu, sizeof(dosyayolu));
     if (dosyayolu[0] != '/' || strstr(dosyayolu, "..") != NULL) {
-        printf("[GUVENLIK] Atlanıyor, geçersiz yol: %s\n", dosyayolu);
+        printf("[!!!] Atlanıyor, geçersiz yol: %s\n", dosyayolu);
         free(namelist[i]);
         continue;
     }
@@ -145,7 +126,7 @@ for (int i = 0; i < n; i++) {
     args[0] = dosyayolu;
     int bekle = (strcmp(bekle_val, "1") == 0);
     int izle = (strcmp(izle_val, "1") == 0);
-        if (izle) printf("[INFO] %s işlemi Karabaş Tarafından izlenecektir.\n", dosyayolu);
+        if (izle) printf("[+] %s işlemi Karabaş Tarafından izlenecektir.\n", dosyayolu);
 
 
       pid = fork(); // ÇATALLAMA ZAMANII!
@@ -168,5 +149,6 @@ for (int i = 0; i < n; i++) {
 free(namelist[i]);
 }
 free(namelist);
-while(wait(NULL) > 0);
+signal(SIGCHLD, SIG_IGN);
+while(1) pause();
 }
