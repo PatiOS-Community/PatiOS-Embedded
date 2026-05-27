@@ -8,10 +8,10 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
-#define DB_DIR "/lib/psp/db"
-#define CACHE_DIR "/lib/psp/cache"
-#define SERVER "mirror.corvora.org"
-#define PATCHES_PATH "/pati/patches.json"
+// #define DB_DIR "/lib/psp/db"
+// #define CACHE_DIR "/lib/psp/cache"
+#define SERVER "patiosmirror.mehmetd.workers.dev"
+#define PATCHES_PATH "/patches.json"
 
 char *strnstr(const char *haystack, const char *needle, size_t len) {
     size_t needle_len = strlen(needle);
@@ -75,7 +75,7 @@ int http_get(const char *host, const char *path, char *buf, size_t bufsz) {
 
     char req[1024];
     snprintf(req, sizeof(req),
-        "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: PSPTool/2.1\r\nAccept: */*\r\n\r\n",
+        "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: PatiOS/2.1\r\nAccept: */*\r\n\r\n",
         path, host);
     write(fd, req, strlen(req));
 
@@ -202,55 +202,78 @@ int http_get_file(const char *host, const char *path, const char *outfile) {
 }
 
 int cmd_check() {
-    printf("Sunucu kontrol ediliyor..\n");
+    printf("\e[93m");
+    printf("[?] Sunucu kontrol ediliyor..\n");
+    printf("\e[0m\n");
 
     char json[8192];
     if (http_get(SERVER, PATCHES_PATH, json, sizeof(json))) {
-        printf("HATA: Sunucuya erisilemedi, lutfen daha sonra tekrar deneyin.\n");
+	printf("\e[1m\e[31m");
+        printf("HATA: Sunucuya erişilemedi, lütfen daha sonra tekrar deneyin.\n");
+	printf("\e[0m\n");
         return -1;
     }
 
     int uyumsuz = 0, tamam = 0, eksik = 0;
     const char *json_end = json + strlen(json);
     char *p = json;
-    while ((p = strnstr(p, "\"/", (size_t)(json_end - p))) != NULL) {
+    while ((p = strnstr(p, "\"", (size_t)(json_end - p))) != NULL) {
         p++;
+        char *key_start = p;
+        char *closing = strnstr(p, "\"", (size_t)(json_end - p));
+        if (!closing || closing >= json_end) break;
+        p = closing + 1;
+        char *after = p;
+        while (*after == ' ' || *after == '\t') after++;
+        if (*after != ':') continue;
+        if (key_start[0] == '/') key_start++;
+        int klen = (int)(closing - key_start);
+        if (klen <= 0 || klen > 255) continue;
         char dosya[256];
-        int i = 0;
-        while (*p && *p != '"' && i < 255)
-            dosya[i++] = *p++;
-        dosya[i] = 0;
-        if (i == 0) continue;
+        memcpy(dosya, key_start, klen);
+        dosya[klen] = 0;
+        if (strcmp(dosya, "sha256") == 0 || strcmp(dosya, "url") == 0) continue;
 
-        char dummy_url[256];
         unsigned char beklenen_hash[32], gercek_hash[32];
+        char dummy_url[256];
+        char yol[512];
+        const char *ad = strrchr(dosya, '/') ? strrchr(dosya, '/') + 1 : dosya;
+        snprintf(yol, sizeof(yol), "/data/paticommands/%s", ad);
         if (json_oku_hash_ve_url(json, dosya, beklenen_hash, dummy_url, sizeof(dummy_url)))
             continue;
-
-        if (dosya_sha256(dosya, gercek_hash)) {
-            printf("[!] %s - dosya bulunamadi.\n", dosya);
+        if (dosya_sha256(yol, gercek_hash)) {
+	    printf("\e[1m\e[31m");
+            printf("[!] %s - dosya bulunamadı.\n", yol);
+	    printf("\e[0m\n");
             eksik++;
             continue;
         }
 
         if (memcmp(beklenen_hash, gercek_hash, 32) == 0) {
-            printf("[+] Dogrulandi! %s zararsiz.\n", dosya);
+	    printf("\e[92m");
+            printf("[+] Doğrulandı! %s zararsız.\n", dosya);
+	    printf("\e[0m\n");
             tamam++;
         } else {
-            printf("[!!!] %s uyumsuz patch dosyasi.\n", dosya);
+	    printf("\e[1m\e[31m");
+            printf("[!!!] %s uyumsuz patch dosyası.\n", dosya);
+	    printf("\e[0m\n");
             uyumsuz++;
         }
     }
-    printf("\nOzet: %d tamam, %d uyumsuz, %d eksik\n", tamam, uyumsuz, eksik);
+    printf("\nÖzet: %d tamam, %d uyumsuz, %d eksik\n", tamam, uyumsuz, eksik);
     return uyumsuz > 0 ? 2 : 0;
 }
 
 int cmd_guncelle() {
-    printf("Guncellemeler kontrol ediliyor...\n");
-
+    printf("\e[93m");
+    printf("[?] Güncellemeler kontrol ediliyor...\n");
+    printf("\e[0m\n");
     char json[16384];
     if (http_get(SERVER, PATCHES_PATH, json, sizeof(json))) {
-        printf("HATA: Sunucuya erisilemedi.\n");
+	printf("\e[91m");
+        printf("HATA: Sunucuya erişilemedi.\n");
+	printf("\e[0m\n");
         return -1;
     }
 
@@ -263,13 +286,22 @@ int cmd_guncelle() {
     int guncellenen = 0;
     const char *json_end = json + strlen(json);
     char *p = json;
-    while ((p = strnstr(p, "\"/", (size_t)(json_end - p))) != NULL) {
+    while ((p = strnstr(p, "\"", (size_t)(json_end - p))) != NULL) {
         p++;
+        char *key_start = p;
+        char *closing = strnstr(p, "\"", (size_t)(json_end - p));
+        if (!closing || closing >= json_end) break;
+        p = closing + 1;
+        char *after = p;
+        while (*after == ' ' || *after == '\t') after++;
+        if (*after != ':') continue;
+        if (key_start[0] == '/') key_start++;
+        int klen = (int)(closing - key_start);
+        if (klen <= 0 || klen > 255) continue;
         char dosya[256];
-        int i = 0;
-        while (*p && *p != '"' && i < 255) dosya[i++] = *p++;
-        dosya[i] = 0;
-        if (i == 0) continue;
+        memcpy(dosya, key_start, klen);
+        dosya[klen] = 0;
+        if (strcmp(dosya, "sha256") == 0 || strcmp(dosya, "url") == 0) continue;
 
         unsigned char beklenen[32], gercek[32];
         char url[256];
@@ -281,65 +313,74 @@ int cmd_guncelle() {
         snprintf(hedef, sizeof(hedef), "/data/paticommands/%s", dosya_adi);
 
         if (dosya_sha256(hedef, gercek) == 0 && memcmp(beklenen, gercek, 32) == 0) {
-            printf(" [+] %s -- guncel\n", dosya_adi);
+            printf(" [+] %s -- güncel\n", dosya_adi);
             continue;
         }
-
-        printf(" [?] %s -- guncelleniyor...\n", dosya_adi);
-
+	printf("\e[93m");
+        printf(" [?] %s -- güncelleniyor...\n", dosya_adi);
+	printf("\e[0m\n");
         char yedek[512];
         snprintf(yedek, sizeof(yedek), "/lib/psp/yedek/%s", dosya_adi);
 
         int has_old_file = (access(hedef, F_OK) == 0);
         if (has_old_file) {
             if (guvenli_kopyala(hedef, yedek) < 0) {
-                printf(" [!] %s -- yedekleme basarisiz, atlaniyor.\n", dosya_adi);
+		printf("\e[91m");
+                printf(" [!] %s -- yedekleme başarısız, atlanıyor.\n", dosya_adi);
+		printf("\e[0m\n");
                 continue;
             }
         }
 
         char cache[512];
+        char urlpath[512];
+        snprintf(urlpath, sizeof(urlpath), "/%s", url);
         snprintf(cache, sizeof(cache), "/lib/psp/cache/%s.tmp",
             strrchr(url, '/') ? strrchr(url, '/') + 1 : url);
-        if (http_get_file(SERVER, url, cache)) {
-            printf(" [!] %s -- indirme basarisiz, yedek geri aliniyor.\n", dosya_adi);
+        if (http_get_file(SERVER, urlpath, cache)) {
+            printf(" [!] %s -- indirme başarısız, yedek geri alınıyor.\n", dosya_adi);
             if (has_old_file) guvenli_kopyala(yedek, hedef);
             continue;
         }
 
         if (guvenli_kopyala(cache, hedef) < 0) {
-            printf(" [!] %s -- tasima hatasi, yedek geri aliniyor.\n", dosya_adi);
+            printf(" [!] %s -- taşıma hatası, yedek geri alınıyor.\n", dosya_adi);
             if (has_old_file) guvenli_kopyala(yedek, hedef);
             continue;
         }
         chmod(hedef, 0755);
 
         if (dosya_sha256(hedef, gercek) == 0 && memcmp(beklenen, gercek, 32) == 0) {
-            printf(" [+] %s -- guncellendi -> /data/paticommands/%s\n", dosya_adi, dosya_adi);
+	    printf("\e[92m");
+            printf(" [+] %s -- güncellendi -> /data/paticommands/%s\n", dosya_adi, dosya_adi);
+	    printf("\e[0m\n");
             if (has_old_file) unlink(yedek);
             guncellenen++;
         } else {
-            printf(" [!] %s -- hash uyusmazligi, yedek geri aliniyor.\n", dosya_adi);
+	    printf("\e[91m");
+            printf(" [!] %s -- hash uyuşmazlığı, yedek geri alınıyor.\n", dosya_adi);
+	    printf("\e[0m\n");
             if (has_old_file) guvenli_kopyala(yedek, hedef);
             else unlink(hedef);
         }
     }
-
-    printf("\n%d dosya guncellendi.\n", guncellenen);
+    printf("\e[92m");
+    printf("\n%d dosya güncellendi.\n", guncellenen);
+    printf("\e[0m\n");
     return 0;
 }
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        printf("Kullanim: psp <komut>\n");
+        printf("Kullanım: psp <komut>\n");
         printf("Komutlar:\n");
-        printf("kontrolet = Sistem butunluk kontrolu.\n");
-        printf("guncelle  = Eksik veya hatali patchleri yukler.\n");
+        printf("kontrolet = Sistemde eksik veya hatalı paketlerin olup olmadığını kontrol eder\n");
+        printf("güncelle  = Eksik veya hatalı patchleri yükler.\n");
         return 1;
     }
-    if (!strcmp(argv[1], "kontrolet"))
+    if (!strcmp(argv[1], "kontrolet") || !strcmp(argv[1], "gkontrolet"))
         return cmd_check();
-    else if (!strcmp(argv[1], "guncelle"))
+    else if (!strcmp(argv[1], "güncelle") || !strcmp(argv[1], "guncelle"))
         return cmd_guncelle();
     else
         printf("Bilinmeyen komut: %s\n", argv[1]);
